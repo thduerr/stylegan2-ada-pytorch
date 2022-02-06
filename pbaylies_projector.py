@@ -90,7 +90,7 @@ def project(
 
     def logprint(*args):
         if verbose:
-            print(*args)
+            print(*args, end='', flush=True)
 
     G = copy.deepcopy(G).eval().requires_grad_(False).to(device) # type: ignore
 
@@ -263,7 +263,7 @@ def project(
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
-        logprint(f'step {step+1:>4d}/{num_steps}: dist {dist:<4.2f} loss {float(loss):<5.2f}')
+        logprint(f'\rstep {step+1:>4d}/{num_steps}: dist {dist:<4.2f} loss {float(loss):<5.2f}')
         with torch.no_grad():
             torch.clamp(w_opt,-latent_range,latent_range,out=w_opt)
         # Save projected W for each optimization step.
