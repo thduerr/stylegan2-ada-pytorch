@@ -160,7 +160,7 @@ def images(G,device,inputs,space,truncation_psi,label,noise_mode,outdir,start=No
 
     for idx, i in enumerate(inputs):
         print('Generating image for frame %d/%d ...' % (idx, len(inputs)))
-        
+
         if (space=='z'):
             z = torch.from_numpy(i).to(device)
             if(start is not None and stop is not None):
@@ -169,7 +169,7 @@ def images(G,device,inputs,space,truncation_psi,label,noise_mode,outdir,start=No
             else:
                 img = G(z, label, truncation_psi=truncation_psi, noise_mode=noise_mode)
         else:
-            if len(i.shape) == 2: 
+            if len(i.shape) == 2:
               i = torch.from_numpy(i).unsqueeze(0).to(device)
             img = G.synthesis(i, noise_mode=noise_mode, force_fp32=True)
         img = (img.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
@@ -190,7 +190,7 @@ def interpolate(G,device,projected_w,seeds,random_seed,space,truncation_psi,labe
             points = np.load(projected_w)['w']
         else:
             # get zs from seeds
-            points = seeds_to_zs(G,seeds)  
+            points = seeds_to_zs(G,seeds)
             # convert to ws
             if(space=='w'):
                 points = zs_to_ws(G,device,label,truncation_psi,points)
@@ -200,7 +200,7 @@ def interpolate(G,device,projected_w,seeds,random_seed,space,truncation_psi,labe
             points = line_interpolate(points,frames,easing)
         elif(interpolation=='slerp'):
             points = slerp_interpolate(points,frames)
-            
+
     # generate frames
     images(G,device,points,space,truncation_psi,label,noise_mode,outdir,start,stop)
 
@@ -267,7 +267,7 @@ def truncation_traversal(G,device,z,label,start,stop,increment,noise_mode,outdir
 
     while trunc <= stop:
         print('Generating truncation %0.2f' % trunc)
-        
+
         img = G(z, label, truncation_psi=trunc, noise_mode=noise_mode)
         img = (img.permute(0, 2, 3, 1) * 127.5 + 128).clamp(0, 255).to(torch.uint8)
         PIL.Image.fromarray(img[0].cpu().numpy(), 'RGB').save(f'{outdir}/frame{count:04d}.png')
@@ -317,6 +317,7 @@ def zs_to_ws(G,device,label,truncation_psi,zs):
 @click.option('--start', type=float, help='starting truncation value', default=0.0, show_default=True)
 @click.option('--stop', type=float, help='stopping truncation value', default=1.0, show_default=True)
 @click.option('--trunc', 'truncation_psi', type=float, help='Truncation psi', default=1, show_default=True)
+@click.option('--save-video', help='Save an mp4 video', type=bool, default=True, show_default=True)
 
 def generate_images(
     ctx: click.Context,
@@ -340,6 +341,7 @@ def generate_images(
     projected_w: Optional[str],
     start: Optional[float],
     stop: Optional[float],
+    save_video: bool,
 ):
     """Generate images using pretrained network pickle.
 
@@ -365,9 +367,9 @@ def generate_images(
     python generate.py --outdir=out --projected_w=projected_w.npz \\
         --network=https://nvlabs-fi-cdn.nvidia.com/stylegan2-ada-pytorch/pretrained/metfaces.pkl
     """
-    
+
     # custom size code from https://github.com/eps696/stylegan2ada/blob/master/src/_genSGAN2.py
-    if(size): 
+    if(size):
         print('render custom size: ',size)
         print('padding method:', scale_type )
         custom = True
@@ -375,7 +377,7 @@ def generate_images(
         custom = False
 
     G_kwargs = dnnlib.EasyDict()
-    G_kwargs.size = size 
+    G_kwargs.size = size
     G_kwargs.scale_type = scale_type
 
     # mask/blend latents with external latmask or by splitting the frame
@@ -475,16 +477,15 @@ def generate_images(
         dirpath = os.path.join(outdir,'frames')
         os.makedirs(dirpath, exist_ok=True)
 
-        #vidname
-        seed = seeds[0]
-        vidname = f'{process}-seed_{seed}-start_{start}-stop_{stop}-inc_{increment}-{fps}fps'
-
         # generate frames
         truncation_traversal(G,device,seeds,label,start,stop,increment,noise_mode,dirpath)
 
         # convert to video
-        cmd=f'ffmpeg -y -r {fps} -i {dirpath}/frame%04d.png -vcodec libx264 -pix_fmt yuv420p {outdir}/{vidname}.mp4'
-        subprocess.call(cmd, shell=True)
+        if save_video:
+            seed = seeds[0]
+            vidname = f'{process}-seed_{seed}-start_{start}-stop_{stop}-inc_{increment}-{fps}fps'
+            cmd=f'ffmpeg -y -r {fps} -i {dirpath}/frame%04d.png -vcodec libx264 -pix_fmt yuv420p {outdir}/{vidname}.mp4'
+            subprocess.call(cmd, shell=True)
 
 #----------------------------------------------------------------------------
 
